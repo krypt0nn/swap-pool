@@ -4,7 +4,7 @@ Do you need to store a large amount of data and it may not fit into your compute
 
 ## Usage
 
-```rs
+```rust
 use swap_pool::prelude::*;
 
 // Create a new swap pool with 128 bytes of memory available
@@ -72,13 +72,15 @@ Notes:
 
 ## Entities keep alive ranking
 
+> Sorry github users, but crates.io has monospaced font
+
 Let's say we have 3 entities in the swap pool:
 
 ```
  Entities
 ┌────────────────────────────────────────┐
 │ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
-│ │ Entity 1  │ │ Entity 2  │ │ Entity 3  │ │
+│ │ Entity 1 │ │ Entity 2 │ │ Entity 3 │ │
 │ └──────────┘ └──────────┘ └──────────┘ │
 └────────────────────────────────────────┘
 ```
@@ -89,7 +91,7 @@ And we've requested "Entity 2" and "Entity 3"'s values. Then our keep alive rank
  Keep alive ranks
 ┌───────────────────────────┐
 │ ┌──────────┐ ┌──────────┐ │
-│ │ Entity 2  │ │ Entity 3  │ │
+│ │ Entity 2 │ │ Entity 3 │ │
 │ └──────────┘ └──────────┘ │
 └───────────────────────────┘
 ```
