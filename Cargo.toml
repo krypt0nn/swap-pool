@@ -3,6 +3,8 @@ name = "swap-pool"
 version = "0.1.0"
 description = "Allow objects to be stored either in RAM or on disk"
 authors = ["Nikita Podvirnyi <krypt0nn@vk.com>"]
+homepage = "https://github.com/krypt0nn/swap-pool"
+repository = "https://github.com/krypt0nn/swap-pool"
 license = "MIT"
 edition = "2021"
 
