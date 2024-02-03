@@ -74,22 +74,22 @@ Notes:
 
 Let's say we have 3 entities in the swap pool:
 
-```text
+```
  Entities
 ┌────────────────────────────────────────┐
 │ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
-│ │ Entity 1 │ │ Entity 2 │ │ Entity 3 │ │
+│ │ Entity 1  │ │ Entity 2  │ │ Entity 3  │ │
 │ └──────────┘ └──────────┘ └──────────┘ │
 └────────────────────────────────────────┘
 ```
 
 And we've requested "Entity 2" and "Entity 3"'s values. Then our keep alive ranks array will look like this:
 
-```text
+```
  Keep alive ranks
 ┌───────────────────────────┐
 │ ┌──────────┐ ┌──────────┐ │
-│ │ Entity 2 │ │ Entity 3 │ │
+│ │ Entity 2  │ │ Entity 3  │ │
 │ └──────────┘ └──────────┘ │
 └───────────────────────────┘
 ```
