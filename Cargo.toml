@@ -1,0 +1,13 @@
+[package]
+name = "swap-pool"
+version = "0.1.0"
+description = "Allow objects to be stored either in RAM or on disk"
+authors = ["Nikita Podvirnyi <krypt0nn@vk.com>"]
+license = "MIT"
+edition = "2021"
+
+[features]
+size-of-crate = ["dep:size-of"]
+
+[dependencies]
+size-of = { version = "0.1.5", optional = true }
