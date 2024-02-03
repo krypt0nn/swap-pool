@@ -10,6 +10,8 @@ edition = "2021"
 
 [features]
 size-of-crate = ["dep:size-of"]
+dyn-size-of-crate = ["dep:dyn_size_of"]
 
 [dependencies]
 size-of = { version = "0.1.5", optional = true }
+dyn_size_of = { version = "0.4.1", optional = true }

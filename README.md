@@ -68,7 +68,7 @@ Notes:
 4. You can free any amount of memory you need by calling `handle.free(memory)`. It will also say if it succeeded to free given amount of memory.
 5. You can also call `handle.flush()` to flush all the entities.
 6. Call `handle.collect_garbage()` to remove weak references to the dropped entities. This method is called automatically on each `handle.free()` call, which is also called automatically by the `entity.value()` if there's not enough memory available. Both methods are resource heavy so don't call them often.
-7. You can use `size-of-crate` feature to use [size-of](https://crates.io/crates/size-of) crate for the types memory count.
+7. You can use `size-of-crate` or `dyn-size-of-crate` feature to use [size-of](https://crates.io/crates/size-of) or [dyn_size_of](https://crates.io/crates/dyn_size_of) crate for the types memory count.
 
 ## Entities keep alive ranking
 

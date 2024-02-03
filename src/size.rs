@@ -3,7 +3,15 @@ pub trait SizeOf {
     fn size_of(&self) -> usize;
 }
 
-#[cfg(feature = "size-of-crate")]
+#[cfg(all(feature = "dyn-size-of-crate", not(feature = "size-of-crate")))]
+impl<T> SizeOf for T where T: dyn_size_of::GetSize {
+    #[inline]
+    fn size_of(&self) -> usize {
+        self.size_bytes()
+    }
+}
+
+#[cfg(all(feature = "size-of-crate", not(feature = "dyn-size-of-crate")))]
 impl<T> SizeOf for T where T: size_of::SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
@@ -11,7 +19,7 @@ impl<T> SizeOf for T where T: size_of::SizeOf {
     }
 }
 
-#[cfg(not(feature = "size-of-crate"))]
+#[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
 impl<T> SizeOf for &[T] where T: SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
@@ -19,7 +27,7 @@ impl<T> SizeOf for &[T] where T: SizeOf {
     }
 }
 
-#[cfg(not(feature = "size-of-crate"))]
+#[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
 impl<T> SizeOf for Vec<T> where T: SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
@@ -27,7 +35,7 @@ impl<T> SizeOf for Vec<T> where T: SizeOf {
     }
 }
 
-#[cfg(not(feature = "size-of-crate"))]
+#[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
 impl<T> SizeOf for std::sync::Weak<T> where T: SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
@@ -40,7 +48,7 @@ impl<T> SizeOf for std::sync::Weak<T> where T: SizeOf {
 
 macro_rules! impl_for_type {
     ($t:ty) => {
-        #[cfg(not(feature = "size-of-crate"))]
+        #[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
         impl SizeOf for $t {
             #[inline]
             fn size_of(&self) -> usize {
@@ -50,7 +58,7 @@ macro_rules! impl_for_type {
     };
 
     (len $t:ty) => {
-        #[cfg(not(feature = "size-of-crate"))]
+        #[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
         impl SizeOf for $t {
             #[inline]
             fn size_of(&self) -> usize {
@@ -60,7 +68,7 @@ macro_rules! impl_for_type {
     };
 
     (capacity $t:ty) => {
-        #[cfg(not(feature = "size-of-crate"))]
+        #[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
         impl SizeOf for $t {
             #[inline]
             fn size_of(&self) -> usize {
