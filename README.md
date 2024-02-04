@@ -159,7 +159,7 @@ let mut pool = SwapPoolBuilder::default()
     .with_manager(ExampleManager::default())
     .with_transformer(ReverseDataTransformer)
     .with_thread_safe(false)
-    .build();
+    .build(128, "/tmp");
 
 let entity = pool.spawn(b"Hello, World!".to_vec()).unwrap();
 
