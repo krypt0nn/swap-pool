@@ -1,3 +1,10 @@
+use std::net::{Ipv4Addr, Ipv6Addr, IpAddr};
+use std::sync::atomic::{
+    AtomicI8, AtomicI16, AtomicI32, AtomicI64, AtomicIsize,
+    AtomicU8, AtomicU16, AtomicU32, AtomicU64, AtomicUsize,
+    AtomicBool
+};
+
 pub trait SizeOf {
     /// Get current value size in bytes
     fn size_of(&self) -> usize;
@@ -44,10 +51,67 @@ impl<T> SizeOf for Vec<T> where T: SizeOf {
 }
 
 #[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
+impl<T> SizeOf for &Vec<T> where T: SizeOf {
+    #[inline]
+    fn size_of(&self) -> usize {
+        self.iter().map(T::size_of).sum()
+    }
+}
+
+impl<T> SizeOf for Option<T> where T: SizeOf {
+    #[inline]
+    fn size_of(&self) -> usize {
+        match self {
+            Some(value) => std::mem::size_of_val(self) + value.size_of(),
+            None => std::mem::size_of_val(self)
+        }
+    }
+}
+
+impl<T, E> SizeOf for Result<T, E> where T: SizeOf, E: SizeOf {
+    #[inline]
+    fn size_of(&self) -> usize {
+        match self {
+            Ok(value) => std::mem::size_of_val(self) + value.size_of(),
+            Err(err) => std::mem::size_of_val(self) + err.size_of()
+        }
+    }
+}
+
+#[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
 impl<T> SizeOf for std::sync::Weak<T> where T: SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
         match self.upgrade() {
+            Some(value) => std::mem::size_of_val(self) + value.size_of(),
+            None => std::mem::size_of_val(self)
+        }
+    }
+}
+
+impl<T> SizeOf for std::cell::Cell<T> where T: Default + SizeOf {
+    #[inline]
+    fn size_of(&self) -> usize {
+        let value = self.take();
+        let size = value.size_of();
+
+        self.set(value);
+
+        std::mem::size_of_val(self) + size
+    }
+}
+
+impl<T> SizeOf for std::cell::RefCell<T> where T: SizeOf {
+    #[inline]
+    fn size_of(&self) -> usize {
+        std::mem::size_of_val(self) + self.borrow().size_of()
+    }
+}
+
+impl<T> SizeOf for std::cell::OnceCell<T> where T: SizeOf {
+    #[inline]
+    fn size_of(&self) -> usize {
+        match self.get() {
             Some(value) => std::mem::size_of_val(self) + value.size_of(),
             None => std::mem::size_of_val(self)
         }
@@ -97,7 +161,7 @@ macro_rules! impl_for_type {
         }
     };
 
-    ($t:ident$(,$f:ident)+) => {
+    ($t:ty$(,$f:ty)+) => {
         impl_for_type!($t);
         $(impl_for_type!($f);)+
     }
@@ -109,19 +173,11 @@ impl_for_type!(f32, f64);
 impl_for_type!(bool, char);
 impl_for_type!(());
 
-impl_for_type!(std::sync::atomic::AtomicI8);
-impl_for_type!(std::sync::atomic::AtomicI16);
-impl_for_type!(std::sync::atomic::AtomicI32);
-impl_for_type!(std::sync::atomic::AtomicI64);
-impl_for_type!(std::sync::atomic::AtomicIsize);
+impl_for_type!(Ipv4Addr, Ipv6Addr, IpAddr);
 
-impl_for_type!(std::sync::atomic::AtomicU8);
-impl_for_type!(std::sync::atomic::AtomicU16);
-impl_for_type!(std::sync::atomic::AtomicU32);
-impl_for_type!(std::sync::atomic::AtomicU64);
-impl_for_type!(std::sync::atomic::AtomicUsize);
-
-impl_for_type!(std::sync::atomic::AtomicBool);
+impl_for_type!(AtomicI8, AtomicI16, AtomicI32, AtomicI64, AtomicIsize);
+impl_for_type!(AtomicU8, AtomicU16, AtomicU32, AtomicU64, AtomicUsize);
+impl_for_type!(AtomicBool);
 
 impl_for_type!(len &str);
 impl_for_type!(len &std::ffi::OsStr);
