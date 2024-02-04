@@ -20,6 +20,7 @@ xxhash-uuid = ["dep:xxhash-rust"]
 size-of-crate = ["dep:size-of"]
 dyn-size-of-crate = ["dep:dyn_size_of"]
 
+full = ["thiserror", "random-uuid", "xxhash-uuid", "dyn-size-of-crate"]
 default = ["timestamp-uuid"]
 
 [dependencies]
