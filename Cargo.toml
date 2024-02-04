@@ -1,6 +1,6 @@
 [package]
 name = "swap-pool"
-version = "0.1.1"
+version = "0.2.0"
 description = "Allow objects to be stored either in RAM or on disk"
 authors = ["Nikita Podvirnyi <krypt0nn@vk.com>"]
 homepage = "https://github.com/krypt0nn/swap-pool"
