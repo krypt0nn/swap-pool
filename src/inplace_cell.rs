@@ -6,23 +6,31 @@ use super::size::SizeOf;
 /// are updated "in place", meaning they won't loose
 /// their value until the update is finished.
 /// 
-/// ### Standard cell:
+/// ### Inplace cell (not thread safe):
+/// 
+/// Foundamentally the same as the standard `RefCell`.
 /// 
 /// ```text
 /// Thread 1      Thread 2
 /// cell.take()
 ///               cell.take()
-/// cell.set()    ^^^^^^^^^^^ - this operation will
+///               ^^^^^^^^^^^ - this operation will
 ///                             return default value
 ///                             instead of what we
 ///                             initially had
+/// cell.set()
+///               cell.get()
+///               ^^^^^^^^^^ - this operation will
+///                            return updated value
 /// 
 /// ```
 /// 
-/// ### Inplace cell:
+/// ### Inplace cell (thread safe):
 /// 
-/// Inplace cell doesn't have take/set methods.
-/// They are used here for better understanding.
+/// Thread same variant clones inner value for mutating it
+/// so you will get the old variant in a parallel
+/// thread before it was updated. This costs some
+/// performance, which is important for e.g. `SwapManager`-s.
 /// 
 /// ```text
 /// Thread 1      Thread 2
@@ -38,15 +46,20 @@ use super::size::SizeOf;
 /// 
 /// ```
 pub struct InplaceCell<T> {
-    value: RefCell<T>
+    value: RefCell<T>,
+
+    /// If true, then the cell's value
+    /// will be cloned before updating
+    thread_safe: bool
 }
 
 impl<T> InplaceCell<T> {
     #[inline]
     /// Create new inplace cell
-    pub fn new(value: T) -> Self {
+    pub fn new(value: T, thread_safe: bool) -> Self {
         Self {
-            value: RefCell::new(value)
+            value: RefCell::new(value),
+            thread_safe
         }
     }
 
@@ -71,7 +84,9 @@ impl<T> InplaceCell<T> where T: Default + Clone {
     pub fn update_result<R, E>(&self, updater: impl FnOnce(&mut T) -> Result<R, E>) -> Result<R, E> {
         let mut value = self.value.take();
 
-        self.value.replace(value.clone());
+        if self.thread_safe {
+            self.value.replace(value.clone());
+        }
 
         let result = updater(&mut value)?;
 
@@ -87,7 +102,10 @@ impl<T> InplaceCell<T> where T: Default + Clone {
     pub fn replace_result<E>(&self, updater: impl FnOnce(T) -> Result<T, E>) -> Result<(), E> {
         let value = self.value.take();
 
-        self.value.replace(value.clone());
+        if self.thread_safe {
+            self.value.replace(value.clone());
+        }
+
         self.value.replace(updater(value)?);
 
         Ok(())

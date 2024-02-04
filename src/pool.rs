@@ -4,19 +4,82 @@ use std::hash::Hash;
 
 use super::size::SizeOf;
 use super::uuid;
-use super::error::{SwapResult, SwapError};
+use super::error::SwapResult;
 use super::entity::SwapEntity;
 use super::handle::SwapHandle;
 use super::manager::{SwapManager, SwapLastUseManager};
+use super::transformer::{SwapTransformer, SwapIdentityTransformer};
+
+pub struct SwapPoolBuilder {
+    thread_safe: bool,
+    manager: Box<dyn SwapManager>,
+    transformer: Box<dyn SwapTransformer>
+}
+
+impl Default for SwapPoolBuilder {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            thread_safe: true,
+            manager: Box::<SwapLastUseManager>::default(),
+            transformer: Box::new(SwapIdentityTransformer)
+        }
+    }
+}
+
+impl SwapPoolBuilder {
+    #[inline]
+    /// Change swap pool thread safety
+    /// 
+    /// See `InplaceCell` docs for details
+    pub fn with_thread_safe(self, thread_safe: bool) -> Self {
+        Self {
+            thread_safe,
+            manager: self.manager,
+            transformer: self.transformer
+        }
+    }
+
+    #[inline]
+    /// Change default swap pool entities manager
+    pub fn with_manager(self, manager: impl SwapManager + 'static) -> Self {
+        Self {
+            thread_safe: self.thread_safe,
+            manager: Box::new(manager),
+            transformer: self.transformer
+        }
+    }
+
+    #[inline]
+    /// Change default swap pool entities' values transformer
+    pub fn with_transformer(self, transformer: impl SwapTransformer + 'static) -> Self {
+        Self {
+            thread_safe: self.thread_safe,
+            manager: self.manager,
+            transformer: Box::new(transformer)
+        }
+    }
+
+    #[inline]
+    /// Build swap pool
+    pub fn build<T>(self, allocated: usize, folder: impl Into<PathBuf>) -> SwapPool<T> {
+        SwapPool {
+            handle: Arc::new(SwapHandle::new(allocated, self.manager, self.transformer, self.thread_safe)),
+            folder: folder.into(),
+            thread_safe: self.thread_safe
+        }
+    }
+}
 
 pub struct SwapPool<T> {
     handle: Arc<SwapHandle<T>>,
-    path: PathBuf
+    folder: PathBuf,
+    thread_safe: bool
 }
 
 impl<T> SwapPool<T> {
     #[inline]
-    /// Create new swap pool with a `SwapLastUseManager` entities manager
+    /// Create new swap pool with default params
     /// 
     /// ```rust,no_run
     /// use swap_pool::prelude::*;
@@ -27,27 +90,30 @@ impl<T> SwapPool<T> {
     /// // Spawn new entity
     /// pool.spawn(vec![0; 128]).unwrap();
     /// ```
-    pub fn new(allocated: usize, path: impl Into<PathBuf>) -> Self {
-        Self::with_manager(allocated, path, SwapLastUseManager::default())
+    pub fn new(allocated: usize, folder: impl Into<PathBuf>) -> Self {
+        SwapPoolBuilder::default().build(allocated, folder)
     }
 
     #[inline]
-    /// Create new swap pool with a custom entities manager
+    /// Get swap pool builder
     /// 
     /// ```rust,no_run
     /// use swap_pool::prelude::*;
     /// 
     /// // Create the pool with a custom entities manager
-    /// let mut pool = SwapPool::with_manager(128, "/tmp", SwapUpgradeCountManager::default());
+    /// // Unfortunately you have to specify SwapPool's type
+    /// // even if you just want to get its builder, so you
+    /// // can use SwapPoolBuilder::default() instead
+    /// let mut pool = SwapPool::<()>::builder()
+    ///     .with_manager(SwapUpgradeCountManager::default())
+    ///     .with_transformer(SwapIdentityTransformer)
+    ///     .build(128, "/tmp");
     /// 
     /// // Spawn new entity
     /// pool.spawn(vec![0; 128]).unwrap();
     /// ```
-    pub fn with_manager(allocated: usize, path: impl Into<PathBuf>, manager: impl SwapManager + 'static) -> Self {
-        Self {
-            handle: Arc::new(SwapHandle::new(allocated, manager)),
-            path: path.into()
-        }
+    pub fn builder() -> SwapPoolBuilder {
+        SwapPoolBuilder::default()
     }
 
     #[inline]
@@ -100,41 +166,9 @@ where
     /// assert!(!std::path::PathBuf::from("/tmp/My cool swap file").exists());
     /// ```
     pub fn spawn_named(&mut self, name: impl AsRef<str>, value: T) -> SwapResult<Arc<SwapEntity<T>>> {
-        let path = self.path.join(name.as_ref());
+        let path = self.folder.join(name.as_ref());
 
-        let entity = SwapEntity::create(value, self.handle.clone(), path)?;
-
-        Ok(self.handle.push_entity(entity))
-    }
-
-    #[inline]
-    /// Spawn new entity in the swap pool from the given file
-    /// 
-    /// ```rust,no_run
-    /// use swap_pool::prelude::*;
-    /// 
-    /// // Create the pool
-    /// let mut pool = SwapPool::<Vec<u8>>::new(128, "/tmp"); // Path doesn't matter here
-    /// 
-    /// // Try to allocate the file on the RAM
-    /// let entity = pool.spawn_from_file("1gb_text_file.txt").unwrap();
-    /// 
-    /// // Print file's len
-    /// println!("File len: {}", entity.value().unwrap().len());
-    /// 
-    /// // Entity's swap file will be deleted once the entity is dropped
-    /// // so you have to consider this if you want to keep this file on the disk
-    /// drop(entity); // You don't need to call this function manually
-    /// 
-    /// // File "1gb_text_file.txt" doesn't exist anymore
-    /// ```
-    pub fn spawn_from_file(&mut self, file: impl Into<PathBuf>) -> SwapResult<Arc<SwapEntity<T>>> {
-        let path: PathBuf = file.into();
-
-        let value = T::try_from(std::fs::read(&path)?)
-            .map_err(|err| SwapError::Deserialize(Box::new(err)))?;
-
-        let entity = SwapEntity::create(value, self.handle.clone(), path)?;
+        let entity = SwapEntity::create(value, self.handle.clone(), path, self.thread_safe)?;
 
         Ok(self.handle.push_entity(entity))
     }

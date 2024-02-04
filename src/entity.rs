@@ -6,6 +6,7 @@ use super::inplace_cell::InplaceCell;
 use super::uuid;
 use super::error::{SwapResult, SwapError};
 use super::handle::SwapHandle;
+use super::transformer::SwapTransformer;
 
 pub struct SwapEntity<T> {
     value: InplaceCell<Option<T>>,
@@ -57,6 +58,10 @@ impl<T> SwapEntity<T> where T: Clone {
 impl<T> SwapEntity<T> where T: Clone + SizeOf {
     #[inline]
     /// Get size of the entity's value
+    /// 
+    /// Note that it will return swap file's size
+    /// if the entity is cold, which can be wrong
+    /// if you use transformer which changes value's size
     pub fn value_size(&self) -> SwapResult<usize> {
         match self.value.get_ref().as_ref() {
             Some(value) => Ok(value.size_of()),
@@ -71,28 +76,48 @@ where
     <T as TryFrom<Vec<u8>>>::Error: std::error::Error + 'static,
     <T as TryInto<Vec<u8>>>::Error: std::error::Error + 'static
 {
+    /// Read value from the swap file using transformer
+    fn read_swap(path: &PathBuf, transformer: &dyn SwapTransformer) -> SwapResult<T> {
+        let swap = std::fs::read(path)?;
+
+        let value = transformer.backward(swap)
+            .map_err(SwapError::TransformBackward)?;
+
+        T::try_from(value).map_err(|err| SwapError::Deserialize(Box::new(err)))
+    }
+
+    /// Write value to the swap file using transformer
+    fn write_swap(path: &PathBuf, value: T, transformer: &dyn SwapTransformer) -> SwapResult<()> {
+        let value: Vec<u8> = value.try_into()
+            .map_err(|err| SwapError::Serialize(Box::new(err)))?;
+
+        let swap = transformer.forward(value)
+            .map_err(SwapError::TransformForward)?;
+
+        std::fs::write(path, swap)?;
+
+        Ok(())
+    }
+
     /// Create new entity and flush it to the disk if there's no space available
-    pub fn create(value: T, handle: Arc<SwapHandle<T>>, path: impl Into<PathBuf>) -> SwapResult<Self> {
+    pub fn create(value: T, handle: Arc<SwapHandle<T>>, path: impl Into<PathBuf>, thread_safe: bool) -> SwapResult<Self> {
         let path: PathBuf = path.into();
 
         // We expect the path to be unique for each entity
         let uuid = uuid::get(&path);
 
         if value.size_of() > handle.available() {
-            let value: Vec<u8> = value.try_into()
-                .map_err(|err| SwapError::Serialize(Box::new(err)))?;
-
-            std::fs::write(&path, value)?;
+            Self::write_swap(&path, value, handle.transformer())?;
 
             Ok(SwapEntity {
-                value: InplaceCell::new(None),
+                value: InplaceCell::new(None, thread_safe),
                 handle,
                 uuid,
                 path
             })
         } else {
             Ok(SwapEntity {
-                value: InplaceCell::new(Some(value)),
+                value: InplaceCell::new(Some(value), thread_safe),
                 handle,
                 uuid,
                 path
@@ -111,8 +136,7 @@ where
         let value = self.value.update_result(|value| {
             let raw_value = match value.take() {
                 Some(value) => value,
-                None => T::try_from(std::fs::read(&self.path)?)
-                    .map_err(|err| SwapError::Deserialize(Box::new(err)))?
+                None => Self::read_swap(&self.path, self.handle.transformer())?
             };
 
             // Calculate amount of memory which is needed to be freed to store the value
@@ -144,8 +168,7 @@ where
         self.value.update_result(|value| {
             match value.take() {
                 Some(value) => Ok(value),
-                None => Ok(T::try_from(std::fs::read(&self.path)?)
-                    .map_err(|err| SwapError::Deserialize(Box::new(err)))?)
+                None => Self::read_swap(&self.path, self.handle.transformer())
             }
         })
     }
@@ -162,8 +185,7 @@ where
 
         self.value.update_result(|value| {
             if value.is_none() {
-                *value = Some(T::try_from(std::fs::read(&self.path)?)
-                    .map_err(|err| SwapError::Deserialize(Box::new(err)))?);
+                *value = Some(Self::read_swap(&self.path, self.handle.transformer())?);
             }
 
             Ok::<_, SwapError>(())
@@ -236,10 +258,7 @@ where
     pub fn flush(&self) -> SwapResult<()> {
         self.value.update_result(|value| {
             if let Some(value) = value.take() {
-                let value: Vec<u8> = value.try_into()
-                    .map_err(|err| SwapError::Serialize(Box::new(err)))?;
-
-                std::fs::write(&self.path, value)?;
+                Self::write_swap(&self.path, value, self.handle.transformer())?
             }
 
             Ok(())

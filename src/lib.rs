@@ -6,6 +6,7 @@ pub mod entity;
 pub mod handle;
 pub mod pool;
 pub mod manager;
+pub mod transformer;
 
 pub mod prelude {
     pub use super::size::*;
@@ -16,4 +17,5 @@ pub mod prelude {
     pub use super::handle::*;
     pub use super::pool::*;
     pub use super::manager::*;
+    pub use super::transformer::*;
 }

@@ -3,6 +3,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::inplace_cell::InplaceCell;
 
+/// Swap manager is needed to rank swap pool entities.
+/// Entities with higher rank will be removed after
+/// entities with lower rank
 pub trait SwapManager {
     // Upgrade given entity's rank and return it
     fn upgrade(&self, uuid: u64) -> u64;
@@ -26,8 +29,15 @@ pub struct SwapLastUseManager {
 impl Default for SwapLastUseManager {
     #[inline]
     fn default() -> Self {
+        Self::new(true)
+    }
+}
+
+impl SwapLastUseManager {
+    #[inline]
+    pub fn new(thread_safe: bool) -> Self {
         Self {
-            ranks: InplaceCell::new(HashMap::new())
+            ranks: InplaceCell::new(HashMap::new(), thread_safe)
         }
     }
 }
@@ -66,8 +76,15 @@ pub struct SwapUpgradeCountManager {
 impl Default for SwapUpgradeCountManager {
     #[inline]
     fn default() -> Self {
+        Self::new(true)
+    }
+}
+
+impl SwapUpgradeCountManager {
+    #[inline]
+    pub fn new(thread_safe: bool) -> Self {
         Self {
-            ranks: InplaceCell::new(HashMap::new())
+            ranks: InplaceCell::new(HashMap::new(), thread_safe)
         }
     }
 }
