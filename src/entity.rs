@@ -250,7 +250,9 @@ where
 impl<T> SizeOf for SwapEntity<T> where T: Clone + SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
-        self.value.size_of() + std::mem::size_of_val(&self.handle) + self.path.capacity()
+        std::mem::size_of_val(self) + 
+            self.value.size_of() +
+            self.path.capacity()
     }
 }
 
