@@ -39,7 +39,7 @@ impl<T> SizeOf for &[T] where T: SizeOf {
 impl<T> SizeOf for Vec<T> where T: SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
-        self.iter().map(T::size_of).sum()
+        std::mem::size_of_val(self) + self.iter().map(T::size_of).sum::<usize>()
     }
 }
 
@@ -47,7 +47,7 @@ impl<T> SizeOf for Vec<T> where T: SizeOf {
 impl<T> SizeOf for &Vec<T> where T: SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
-        self.iter().map(T::size_of).sum()
+        std::mem::size_of_val(*self) + self.iter().map(T::size_of).sum::<usize>()
     }
 }
 
