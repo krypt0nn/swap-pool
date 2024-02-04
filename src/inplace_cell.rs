@@ -49,6 +49,18 @@ impl<T> InplaceCell<T> {
             value: RefCell::new(value)
         }
     }
+
+    #[inline]
+    /// Replace stored value by a new one
+    pub fn replace_by(&self, value: T) {
+        self.value.replace(value);
+    }
+
+    #[inline]
+    /// Clone stored value and return it
+    pub fn get_ref(&self) -> Ref<'_, T> {
+        self.value.borrow()
+    }
 }
 
 impl<T> InplaceCell<T> where T: Default + Clone {
@@ -98,12 +110,6 @@ impl<T> InplaceCell<T> where T: Default + Clone {
     }
 
     #[inline]
-    /// Replace stored value by a new one
-    pub fn replace_by(&self, value: T) {
-        self.value.replace(value);
-    }
-
-    #[inline]
     /// Clone stored value and return it
     pub fn get_copy(&self) -> T {
         let value = self.value.take();
@@ -111,12 +117,6 @@ impl<T> InplaceCell<T> where T: Default + Clone {
         self.value.replace(value.clone());
 
         value
-    }
-
-    #[inline]
-    /// Clone stored value and return it
-    pub fn get_ref(&self) -> Ref<'_, T> {
-        self.value.borrow()
     }
 }
 
