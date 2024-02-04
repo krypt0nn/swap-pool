@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use std::hash::Hasher;
 use std::collections::hash_map::DefaultHasher;
 use std::sync::Arc;
-use std::io::Result;
 
 use super::size::SizeOf;
 use super::inplace_cell::InplaceCell;
 use super::handle::SwapHandle;
+use super::error::{SwapResult, SwapError};
 
 pub struct SwapEntity<T> {
     value: InplaceCell<Option<T>>,
@@ -30,7 +30,7 @@ impl<T> SwapEntity<T> {
     }
 }
 
-impl<T: Clone> SwapEntity<T> {
+impl<T> SwapEntity<T> where T: Clone {
     #[inline]
     /// Check if the inner value is stored in the RAM right now
     pub fn is_hot(&self) -> bool {
@@ -44,10 +44,10 @@ impl<T: Clone> SwapEntity<T> {
     }
 }
 
-impl<T: Clone + SizeOf> SwapEntity<T> {
+impl<T> SwapEntity<T> where T: Clone + SizeOf {
     #[inline]
     /// Get size of the entity's value
-    pub fn value_size(&self) -> Result<usize> {
+    pub fn value_size(&self) -> SwapResult<usize> {
         match self.value.get() {
             Some(value) => Ok(value.size_of()),
             None => Ok(usize::try_from(self.path.metadata()?.len()).unwrap())
@@ -55,9 +55,14 @@ impl<T: Clone + SizeOf> SwapEntity<T> {
     }
 }
 
-impl<T> SwapEntity<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
+impl<T> SwapEntity<T>
+where
+    T: TryFrom<Vec<u8>> + TryInto<Vec<u8>> + Clone + SizeOf,
+    <T as TryFrom<Vec<u8>>>::Error: std::error::Error + 'static,
+    <T as TryInto<Vec<u8>>>::Error: std::error::Error + 'static
+{
     /// Create new entity and flush it to the disk if there's no space available
-    pub fn create(value: T, handle: Arc<SwapHandle<T>>, path: impl Into<PathBuf>) -> Result<Self> {
+    pub fn create(value: T, handle: Arc<SwapHandle<T>>, path: impl Into<PathBuf>) -> SwapResult<Self> {
         let path: PathBuf = path.into();
 
         let mut hasher = DefaultHasher::new();
@@ -68,7 +73,10 @@ impl<T> SwapEntity<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
         let uuid = hasher.finish();
 
         if value.size_of() > handle.available() {
-            std::fs::write(&path, value.into())?;
+            let value: Vec<u8> = value.try_into()
+                .map_err(|err| SwapError::Serialize(Box::new(err)))?;
+
+            std::fs::write(&path, value)?;
 
             Ok(SwapEntity {
                 value: InplaceCell::new(None),
@@ -91,13 +99,14 @@ impl<T> SwapEntity<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
     /// 
     /// This method will make the entity hot if the pool has
     /// enough memory available, or keep it cold otherwise
-    pub fn value(&self) -> Result<T> {
+    pub fn value(&self) -> SwapResult<T> {
         self.handle.keep_alive(self.uuid);
 
         let value = self.value.update_result(|value| {
             let raw_value = match value.take() {
                 Some(value) => value,
-                None => T::from(std::fs::read(&self.path)?)
+                None => T::try_from(std::fs::read(&self.path)?)
+                    .map_err(|err| SwapError::Deserialize(Box::new(err)))?
             };
 
             // Calculate amount of memory which is needed to be freed to store the value
@@ -111,7 +120,7 @@ impl<T> SwapEntity<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
                 *value = Some(raw_value.clone());
             }
 
-            Ok::<_, std::io::Error>(raw_value)
+            Ok::<_, SwapError>(raw_value)
         })?;
 
         Ok(value)
@@ -125,11 +134,12 @@ impl<T> SwapEntity<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
     /// It also will not increment the entity's keep alive rank
     /// 
     /// Use it if you need to access value once
-    pub fn value_unallocate(&self) -> Result<T> {
+    pub fn value_unallocate(&self) -> SwapResult<T> {
         self.value.update_result(|value| {
             match value.take() {
                 Some(value) => Ok(value),
-                None => Ok(T::from(std::fs::read(&self.path)?))
+                None => Ok(T::try_from(std::fs::read(&self.path)?)
+                    .map_err(|err| SwapError::Deserialize(Box::new(err)))?)
             }
         })
     }
@@ -141,15 +151,16 @@ impl<T> SwapEntity<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
     /// free space available in the pool
     /// 
     /// Use it if you need to access value frequently
-    pub fn value_allocate(&self) -> Result<T> {
+    pub fn value_allocate(&self) -> SwapResult<T> {
         self.handle.keep_alive(self.uuid);
 
         self.value.update_result(|value| {
             if value.is_none() {
-                *value = Some(T::from(std::fs::read(&self.path)?));
+                *value = Some(T::try_from(std::fs::read(&self.path)?)
+                    .map_err(|err| SwapError::Deserialize(Box::new(err)))?);
             }
 
-            Ok::<_, std::io::Error>(())
+            Ok::<_, SwapError>(())
         })?;
 
         unsafe {
@@ -168,7 +179,7 @@ impl<T> SwapEntity<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
     /// Use `replace` instead if you're sure that
     /// it will take less or equal amount of memory
     // TODO: don't flush the value before we're sure that it's needed
-    pub fn update(&self, value: T) -> Result<bool> {
+    pub fn update(&self, value: T) -> SwapResult<bool> {
         // Flush the entity making it cold
         self.flush()?;
 
@@ -202,7 +213,7 @@ impl<T> SwapEntity<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
     /// 
     /// This method will not check if there's enough memory available
     /// so it works faster than `update`
-    pub fn replace(&self, value: T) -> Result<()> {
+    pub fn replace(&self, value: T) -> SwapResult<()> {
         self.value.update(move |old_value| *old_value = Some(value));
 
         // This is technically not needed but I do this anyway
@@ -216,10 +227,13 @@ impl<T> SwapEntity<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
 
     #[inline]
     /// Flush stored value to the disk, making current entity cold
-    pub fn flush(&self) -> Result<()> {
+    pub fn flush(&self) -> SwapResult<()> {
         self.value.update_result(|value| {
             if let Some(value) = value.take() {
-                std::fs::write(&self.path, value.into())?;
+                let value: Vec<u8> = value.try_into()
+                    .map_err(|err| SwapError::Serialize(Box::new(err)))?;
+
+                std::fs::write(&self.path, value)?;
             }
 
             Ok(())
@@ -227,7 +241,7 @@ impl<T> SwapEntity<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
     }
 }
 
-impl<T: Clone + SizeOf> SizeOf for SwapEntity<T> {
+impl<T> SizeOf for SwapEntity<T> where T: Clone + SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
         let value_size = self.value.get()

@@ -3,6 +3,7 @@ pub mod inplace_cell;
 pub mod handle;
 pub mod entity;
 pub mod pool;
+pub mod error;
 
 pub mod prelude {
     pub use super::size::*;
@@ -10,4 +11,5 @@ pub mod prelude {
     pub use super::handle::*;
     pub use super::entity::*;
     pub use super::pool::*;
+    pub use super::error::*;
 }

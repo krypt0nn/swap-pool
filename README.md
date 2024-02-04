@@ -68,11 +68,22 @@ Notes:
 4. You can free any amount of memory you need by calling `handle.free(memory)`. It will also say if it succeeded to free given amount of memory.
 5. You can also call `handle.flush()` to flush all the entities.
 6. Call `handle.collect_garbage()` to remove weak references to the dropped entities. This method is called automatically on each `handle.free()` call, which is also called automatically by the `entity.value()` if there's not enough memory available. Both methods are resource heavy so don't call them often.
-7. You can use `size-of-crate` or `dyn-size-of-crate` feature to use [size-of](https://crates.io/crates/size-of) or [dyn_size_of](https://crates.io/crates/dyn_size_of) crate for the types memory count.
+
+## Features
+
+| Name | Description |
+| - | - |
+| `thiserror` | Implement `Error` trait for `SwapError` type from the [thiserror](https://crates.io/crates/thiserror) crate. |
+| `size-of-crate` [1] | Implement `SizeOf` trait for all the types supported by [size-of](https://crates.io/crates/size-of) crate. |
+| `dyn-size-of-crate` [1] | Implement `SizeOf` trait for all the types supported by [dyn_size_of](https://crates.io/crates/dyn_size_of) crate. |
+
+Notes:
+
+1. You can't enable both `size-of-crate` and `dyn-size-of-crate` features simultaneously because it would cause compatibility issues. Consider enabling only one of them.
 
 ## Entities keep alive ranking
 
-> Sorry github users, but crates.io has monospaced font
+> Sorry github users, but crates.io has monospaced font.
 
 Let's say we have 3 entities in the swap pool:
 

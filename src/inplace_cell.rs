@@ -49,7 +49,7 @@ impl<T> InplaceCell<T> {
     }
 }
 
-impl<T: Default + Clone> InplaceCell<T> {
+impl<T> InplaceCell<T> where T: Default + Clone {
     #[inline]
     /// Update stored value using updater,
     /// catching and returning error from the updater

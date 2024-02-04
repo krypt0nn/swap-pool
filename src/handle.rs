@@ -1,10 +1,10 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Weak};
-use std::io::Result;
 
 use super::size::SizeOf;
 use super::inplace_cell::InplaceCell;
 use super::entity::SwapEntity;
+use super::error::SwapResult;
 
 pub struct SwapHandle<T> {
     allocated: usize,
@@ -94,10 +94,15 @@ impl<T> SwapHandle<T> where T: Clone + SizeOf {
     }
 }
 
-impl<T> SwapHandle<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
+impl<T> SwapHandle<T>
+where
+    T: TryFrom<Vec<u8>> + TryInto<Vec<u8>> + Clone + SizeOf,
+    <T as TryFrom<Vec<u8>>>::Error: std::error::Error + 'static,
+    <T as TryInto<Vec<u8>>>::Error: std::error::Error + 'static
+{
     #[inline]
     /// Flush all the stored entities to the disk
-    pub fn flush(&self) -> Result<()> {
+    pub fn flush(&self) -> SwapResult<()> {
         for weak in self.entities.get() {
             if let Some(entity) = weak.upgrade() {
                 entity.flush()?;
@@ -112,7 +117,7 @@ impl<T> SwapHandle<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
     /// If the function returned `Ok(false)` - then the method
     /// failed to free required amount of memory but there's also
     /// no hot entities remained so nothing to unallocate
-    pub fn free(&self, mut memory: usize) -> Result<bool> {
+    pub fn free(&self, mut memory: usize) -> SwapResult<bool> {
         // Remove unused entities
         self.collect_garbage();
 

@@ -2,11 +2,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
-use std::io::Result;
 
 use super::size::SizeOf;
 use super::handle::SwapHandle;
 use super::entity::SwapEntity;
+use super::error::SwapResult;
 
 pub struct SwapPool<T> {
     handle: Arc<SwapHandle<T>>,
@@ -30,10 +30,15 @@ impl<T> SwapPool<T> {
     }
 }
 
-impl<T> SwapPool<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
+impl<T> SwapPool<T>
+where
+    T: TryFrom<Vec<u8>> + TryInto<Vec<u8>> + Clone + SizeOf,
+    <T as TryFrom<Vec<u8>>>::Error: std::error::Error + 'static,
+    <T as TryInto<Vec<u8>>>::Error: std::error::Error + 'static
+{
     #[inline]
     /// Spawn new entity in the swap pool with a given file name
-    pub fn spawn_named(&mut self, name: impl AsRef<str>, value: T) -> Result<Arc<SwapEntity<T>>> {
+    pub fn spawn_named(&mut self, name: impl AsRef<str>, value: T) -> SwapResult<Arc<SwapEntity<T>>> {
         let path = self.path.join(name.as_ref());
 
         let entity = SwapEntity::create(value, self.handle.clone(), path)?;
@@ -42,10 +47,15 @@ impl<T> SwapPool<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf {
     }
 }
 
-impl<T> SwapPool<T> where T: From<Vec<u8>> + Into<Vec<u8>> + Clone + SizeOf + Hash {
+impl<T> SwapPool<T>
+where
+    T: TryFrom<Vec<u8>> + TryInto<Vec<u8>> + Clone + SizeOf + Hash,
+    <T as TryFrom<Vec<u8>>>::Error: std::error::Error + 'static,
+    <T as TryInto<Vec<u8>>>::Error: std::error::Error + 'static
+{
     #[inline]
     /// Spawn new entity in the swap pool
-    pub fn spawn(&mut self, value: T) -> Result<Arc<SwapEntity<T>>> {
+    pub fn spawn(&mut self, value: T) -> SwapResult<Arc<SwapEntity<T>>> {
         let mut hasher = DefaultHasher::new();
 
         let timestamp = std::time::SystemTime::now()
