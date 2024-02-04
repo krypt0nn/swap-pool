@@ -1,10 +1,3 @@
-use std::net::{Ipv4Addr, Ipv6Addr, IpAddr};
-use std::sync::atomic::{
-    AtomicI8, AtomicI16, AtomicI32, AtomicI64, AtomicIsize,
-    AtomicU8, AtomicU16, AtomicU32, AtomicU64, AtomicUsize,
-    AtomicBool
-};
-
 pub trait SizeOf {
     /// Get current value size in bytes
     fn size_of(&self) -> usize;
@@ -58,6 +51,7 @@ impl<T> SizeOf for &Vec<T> where T: SizeOf {
     }
 }
 
+#[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
 impl<T> SizeOf for Option<T> where T: SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
@@ -68,6 +62,7 @@ impl<T> SizeOf for Option<T> where T: SizeOf {
     }
 }
 
+#[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
 impl<T, E> SizeOf for Result<T, E> where T: SizeOf, E: SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
@@ -89,6 +84,7 @@ impl<T> SizeOf for std::sync::Weak<T> where T: SizeOf {
     }
 }
 
+#[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
 impl<T> SizeOf for std::cell::Cell<T> where T: Default + SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
@@ -101,6 +97,7 @@ impl<T> SizeOf for std::cell::Cell<T> where T: Default + SizeOf {
     }
 }
 
+#[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
 impl<T> SizeOf for std::cell::RefCell<T> where T: SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
@@ -108,6 +105,7 @@ impl<T> SizeOf for std::cell::RefCell<T> where T: SizeOf {
     }
 }
 
+#[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
 impl<T> SizeOf for std::cell::OnceCell<T> where T: SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
@@ -166,6 +164,16 @@ macro_rules! impl_for_type {
         $(impl_for_type!($f);)+
     }
 }
+
+#[cfg(all(not(feature = "size-of-crate"), not(feature = "dyn-size-of-crate")))]
+use std::{
+    net::{Ipv4Addr, Ipv6Addr, IpAddr},
+    sync::atomic::{
+        AtomicI8, AtomicI16, AtomicI32, AtomicI64, AtomicIsize,
+        AtomicU8, AtomicU16, AtomicU32, AtomicU64, AtomicUsize,
+        AtomicBool
+    }
+};
 
 impl_for_type!(i8, i16, i32, i64, i128, isize);
 impl_for_type!(u8, u16, u32, u64, u128, usize);
