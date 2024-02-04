@@ -74,12 +74,19 @@ Notes:
 | Name | Description |
 | - | - |
 | `thiserror` | Implement `Error` trait for `SwapError` type from the [thiserror](https://crates.io/crates/thiserror) crate. |
-| `size-of-crate` [1] | Implement `SizeOf` trait for all the types supported by [size-of](https://crates.io/crates/size-of) crate. |
-| `dyn-size-of-crate` [1] | Implement `SizeOf` trait for all the types supported by [dyn_size_of](https://crates.io/crates/dyn_size_of) crate. |
+| `timestamp-uuid` [1] | Use `SystemTime::now()` to generate entities' UUIDs. Enabled by default. |
+| `random-uuid` [1] | Use [rand](https://crates.io/crates/rand) crate to generate random entities' UUIDs. |
+| `crc32-uuid` [2] | Use [crc32fast](https://crates.io/crates/crc32fast) crate to generate random entities' UUIDs. |
+| `xxhash-uuid` [2] | Use [xxhash-rust](https://crates.io/crates/xxhash-rust) crate (xxh3) to generate random entities' UUIDs. |
+| `size-of-crate` [3] | Implement `SizeOf` trait for all the types supported by [size-of](https://crates.io/crates/size-of) crate. |
+| `dyn-size-of-crate` [3] | Implement `SizeOf` trait for all the types supported by [dyn_size_of](https://crates.io/crates/dyn_size_of) crate. |
+| `default` | `timestamp-uuid` |
 
 Notes:
 
-1. You can't enable both `size-of-crate` and `dyn-size-of-crate` features simultaneously because it would cause compatibility issues. Consider enabling only one of them.
+1. Enabling `random-uuid` will disable `timestamp-uuid` and use of values to generate UUID (result will be based on the randomly generated number only). When both disabled - UUID generation will be based on the entity's value only.
+2. If both `crc32-uuid` and `xxhash-uuid` enabled - the latest one will be prioritized.
+3. You can't enable both `size-of-crate` and `dyn-size-of-crate` features simultaneously because it would cause compatibility issues. Consider enabling only one of them.
 
 ## Entities keep alive ranking
 

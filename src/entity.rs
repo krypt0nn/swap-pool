@@ -1,13 +1,11 @@
-use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
-use std::hash::Hasher;
-use std::collections::hash_map::DefaultHasher;
 use std::sync::Arc;
 
 use super::size::SizeOf;
 use super::inplace_cell::InplaceCell;
-use super::handle::SwapHandle;
+use super::uuid;
 use super::error::{SwapResult, SwapError};
+use super::handle::SwapHandle;
 
 pub struct SwapEntity<T> {
     value: InplaceCell<Option<T>>,
@@ -65,12 +63,8 @@ where
     pub fn create(value: T, handle: Arc<SwapHandle<T>>, path: impl Into<PathBuf>) -> SwapResult<Self> {
         let path: PathBuf = path.into();
 
-        let mut hasher = DefaultHasher::new();
-
         // We expect the path to be unique for each entity
-        hasher.write(path.as_os_str().as_bytes());
-
-        let uuid = hasher.finish();
+        let uuid = uuid::get(&path);
 
         if value.size_of() > handle.available() {
             let value: Vec<u8> = value.try_into()

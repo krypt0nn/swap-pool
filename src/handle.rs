@@ -3,8 +3,8 @@ use std::sync::{Arc, Weak};
 
 use super::size::SizeOf;
 use super::inplace_cell::InplaceCell;
-use super::entity::SwapEntity;
 use super::error::SwapResult;
+use super::entity::SwapEntity;
 
 pub struct SwapHandle<T> {
     allocated: usize,

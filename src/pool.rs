@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
+use std::hash::Hash;
 
 use super::size::SizeOf;
-use super::handle::SwapHandle;
-use super::entity::SwapEntity;
+use super::uuid;
 use super::error::SwapResult;
+use super::entity::SwapEntity;
+use super::handle::SwapHandle;
 
 pub struct SwapPool<T> {
     handle: Arc<SwapHandle<T>>,
@@ -56,15 +56,6 @@ where
     #[inline]
     /// Spawn new entity in the swap pool
     pub fn spawn(&mut self, value: T) -> SwapResult<Arc<SwapEntity<T>>> {
-        let mut hasher = DefaultHasher::new();
-
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
-
-        value.hash(&mut hasher);
-        timestamp.hash(&mut hasher);
-
-        self.spawn_named(format!("{:x}.swap", hasher.finish()), value)
+        self.spawn_named(format!("{:x}.swap", uuid::get(&value)), value)
     }
 }
