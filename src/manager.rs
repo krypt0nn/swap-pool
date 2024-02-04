@@ -48,7 +48,7 @@ impl SwapManager for SwapLastUseManager {
 
     #[inline]
     fn rank(&self, uuid: u64) -> u64 {
-        self.ranks.get()
+        self.ranks.get_ref()
             .get(&uuid)
             .copied()
             .unwrap_or_default()
@@ -90,7 +90,7 @@ impl SwapManager for SwapUpgradeCountManager {
 
     #[inline]
     fn rank(&self, uuid: u64) -> u64 {
-        self.ranks.get()
+        self.ranks.get_ref()
             .get(&uuid)
             .copied()
             .unwrap_or_default()

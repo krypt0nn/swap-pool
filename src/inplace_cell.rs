@@ -1,8 +1,8 @@
-use std::cell::Cell;
+use std::cell::{RefCell, Ref};
 
 use super::size::SizeOf;
 
-/// Inplace cells are standard rust `Cell`-s that
+/// Inplace cells are standard rust `RefCell`-s that
 /// are updated "in place", meaning they won't loose
 /// their value until the update is finished.
 /// 
@@ -38,7 +38,7 @@ use super::size::SizeOf;
 /// 
 /// ```
 pub struct InplaceCell<T> {
-    value: Cell<T>
+    value: RefCell<T>
 }
 
 impl<T> InplaceCell<T> {
@@ -46,7 +46,7 @@ impl<T> InplaceCell<T> {
     /// Create new inplace cell
     pub fn new(value: T) -> Self {
         Self {
-            value: Cell::new(value)
+            value: RefCell::new(value)
         }
     }
 }
@@ -59,11 +59,11 @@ impl<T> InplaceCell<T> where T: Default + Clone {
     pub fn update_result<R, E>(&self, updater: impl FnOnce(&mut T) -> Result<R, E>) -> Result<R, E> {
         let mut value = self.value.take();
 
-        self.value.set(value.clone());
+        self.value.replace(value.clone());
 
         let result = updater(&mut value)?;
 
-        self.value.set(value);
+        self.value.replace(value);
 
         Ok(result)
     }
@@ -75,8 +75,8 @@ impl<T> InplaceCell<T> where T: Default + Clone {
     pub fn replace_result<E>(&self, updater: impl FnOnce(T) -> Result<T, E>) -> Result<(), E> {
         let value = self.value.take();
 
-        self.value.set(value.clone());
-        self.value.set(updater(value)?);
+        self.value.replace(value.clone());
+        self.value.replace(updater(value)?);
 
         Ok(())
     }
@@ -105,12 +105,18 @@ impl<T> InplaceCell<T> where T: Default + Clone {
 
     #[inline]
     /// Clone stored value and return it
-    pub fn get(&self) -> T {
+    pub fn get_copy(&self) -> T {
         let value = self.value.take();
 
-        self.value.set(value.clone());
+        self.value.replace(value.clone());
 
         value
+    }
+
+    #[inline]
+    /// Clone stored value and return it
+    pub fn get_ref(&self) -> Ref<'_, T> {
+        self.value.borrow()
     }
 }
 
@@ -120,7 +126,7 @@ impl<T> SizeOf for InplaceCell<T> where T: Default + Clone + SizeOf {
         let value = self.value.take();
         let size = value.size_of();
 
-        self.value.set(value);
+        self.value.replace(value);
 
         std::mem::size_of_val(self) + size
     }

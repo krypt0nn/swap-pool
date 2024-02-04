@@ -49,7 +49,7 @@ impl<T> SwapHandle<T> {
     #[inline]
     /// Get list of entities registered in the pool
     pub fn entities(&self) -> Vec<Weak<SwapEntity<T>>> {
-        self.entities.get()
+        self.entities.get_copy()
     }
 
     #[inline]
@@ -71,8 +71,8 @@ impl<T> SwapHandle<T> where T: Clone + SizeOf {
     /// 
     /// This method iterates over all the stored entities
     pub fn used(&self) -> usize {
-        self.entities.get()
-            .into_iter()
+        self.entities.get_ref()
+            .iter()
             .flat_map(|weak| weak.upgrade())
             .filter(|entity| entity.is_hot())
             .map(|entity| entity.size_of())
@@ -98,7 +98,7 @@ where
     #[inline]
     /// Flush all the stored entities to the disk
     pub fn flush(&self) -> SwapResult<()> {
-        for weak in self.entities.get() {
+        for weak in self.entities.get_ref().iter() {
             if let Some(entity) = weak.upgrade() {
                 entity.flush()?;
             }
@@ -114,8 +114,8 @@ where
     /// no hot entities remained so nothing to unallocate
     pub fn free(&self, mut memory: usize) -> SwapResult<bool> {
         // Prepare list of entities and their ranks
-        let mut entities = self.entities.get()
-            .into_iter()
+        let mut entities = self.entities.get_ref()
+            .iter()
             .flat_map(|entity| entity.upgrade())
             .map(|entity| (self.manager.rank(entity.uuid()), entity))
             .collect::<Vec<_>>();

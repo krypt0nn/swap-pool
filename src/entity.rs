@@ -44,13 +44,13 @@ impl<T> SwapEntity<T> where T: Clone {
     #[inline]
     /// Check if the inner value is stored in the RAM right now
     pub fn is_hot(&self) -> bool {
-        self.value.get().is_some()
+        self.value.get_ref().is_some()
     }
 
     #[inline]
     /// Check if the inner value is stored on the disk right now
     pub fn is_cold(&self) -> bool {
-        self.value.get().is_none()
+        self.value.get_ref().is_none()
     }
 }
 
@@ -58,7 +58,7 @@ impl<T> SwapEntity<T> where T: Clone + SizeOf {
     #[inline]
     /// Get size of the entity's value
     pub fn value_size(&self) -> SwapResult<usize> {
-        match self.value.get() {
+        match self.value.get_ref().as_ref() {
             Some(value) => Ok(value.size_of()),
             None => Ok(usize::try_from(self.path.metadata()?.len()).unwrap())
         }
@@ -170,7 +170,7 @@ where
         })?;
 
         unsafe {
-            Ok(self.value.get().unwrap_unchecked())
+            Ok(self.value.get_copy().unwrap_unchecked())
         }
     }
 
