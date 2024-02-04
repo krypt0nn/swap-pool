@@ -1,25 +1,25 @@
-use std::collections::VecDeque;
 use std::sync::{Arc, Weak};
 
 use super::size::SizeOf;
 use super::inplace_cell::InplaceCell;
 use super::error::SwapResult;
 use super::entity::SwapEntity;
+use super::manager::SwapManager;
 
 pub struct SwapHandle<T> {
     allocated: usize,
     entities: InplaceCell<Vec<Weak<SwapEntity<T>>>>,
-    fetches: InplaceCell<VecDeque<u64>>
+    manager: Box<dyn SwapManager>
 }
 
 impl<T> SwapHandle<T> {
     #[inline]
     /// Create new swap pool handle
-    pub fn new(allocated: usize) -> Self {
+    pub fn new(allocated: usize, manager: impl SwapManager + 'static) -> Self {
         Self {
             allocated,
             entities: InplaceCell::new(Vec::new()),
-            fetches: InplaceCell::new(VecDeque::new())
+            manager: Box::new(manager)
         }
     }
 
@@ -29,9 +29,27 @@ impl<T> SwapHandle<T> {
         let entity = Arc::new(entity);
 
         self.entities.update(|entities| entities.push(Arc::downgrade(&entity)));
-        self.fetches.update(|fetches| fetches.push_back(entity.uuid()));
+        self.manager.upgrade(entity.uuid());
 
         entity
+    }
+
+    #[inline]
+    /// Upgrade pool entity's rank and return new value
+    pub fn upgrade_entity(&self, uuid: u64) -> u64 {
+        self.manager.upgrade(uuid)
+    }
+
+    #[inline]
+    /// Get pool entity's rank
+    pub fn rank_entity(&self, uuid: u64) -> u64 {
+        self.manager.rank(uuid)
+    }
+
+    #[inline]
+    /// Get list of entities registered in the pool
+    pub fn entities(&self) -> Vec<Weak<SwapEntity<T>>> {
+        self.entities.get()
     }
 
     #[inline]
@@ -69,29 +87,6 @@ impl<T> SwapHandle<T> where T: Clone + SizeOf {
     pub fn available(&self) -> usize {
         self.allocated().checked_sub(self.used()).unwrap_or_default()
     }
-
-    #[inline]
-    /// Mark entity with given UUID as "keep alive".
-    /// This means that this entity will be flushed by the pool
-    /// only if other entities cannot be
-    pub fn keep_alive(&self, uuid: u64) {
-        self.fetches.update(|fetches| {
-            // Remove given uuid from the fetches history
-            fetches.retain(|fetch| fetch != &uuid);
-
-            let shift = fetches.len()
-                .checked_sub(self.entities.get().len())
-                .unwrap_or_default();
-
-            // Remove old keep alive records
-            if shift > 0 {
-                fetches.drain(..shift);
-            }
-
-            // Push uuid to the fetches history
-            fetches.push_back(uuid);
-        });
-    }
 }
 
 impl<T> SwapHandle<T>
@@ -118,24 +113,14 @@ where
     /// failed to free required amount of memory but there's also
     /// no hot entities remained so nothing to unallocate
     pub fn free(&self, mut memory: usize) -> SwapResult<bool> {
-        // Remove unused entities
-        self.collect_garbage();
-
-        // Get history of entities fetches
-        let fetches = self.fetches.get();
-
-        // Prepare list of entities and their keep alive rank
+        // Prepare list of entities and their ranks
         let mut entities = self.entities.get()
             .into_iter()
             .flat_map(|entity| entity.upgrade())
-            .map(|entity| {
-                let position = fetches.iter().position(|fetch| fetch == &entity.uuid());
-
-                (position, entity)
-            })
+            .map(|entity| (self.manager.rank(entity.uuid()), entity))
             .collect::<Vec<_>>();
 
-        // Sort entities by their keep alive rank in descending order
+        // Sort entities by their ranks in descending order
         entities.sort_by(|a, b| b.0.cmp(&a.0));
 
         // Flush entities one by one until we free enough memory
@@ -147,7 +132,7 @@ where
             // Flush entity if it's hot
             if entity.is_hot() {
                 // Read its size before flushing because it will change afterwards
-                let size = entity.size_of();
+                let size = entity.value_size()?;
 
                 // Flush the entity
                 entity.flush()?;

@@ -26,6 +26,18 @@ impl<T> SwapEntity<T> {
     pub fn uuid(&self) -> u64 {
         self.uuid
     }
+
+    #[inline]
+    /// Upgrade entity's rank
+    pub fn upgrade(&self) -> u64 {
+        self.handle.upgrade_entity(self.uuid)
+    }
+
+    #[inline]
+    /// Get entity's rank
+    pub fn rank(&self) -> u64 {
+        self.handle.rank_entity(self.uuid)
+    }
 }
 
 impl<T> SwapEntity<T> where T: Clone {
@@ -94,7 +106,7 @@ where
     /// This method will make the entity hot if the pool has
     /// enough memory available, or keep it cold otherwise
     pub fn value(&self) -> SwapResult<T> {
-        self.handle.keep_alive(self.uuid);
+        self.upgrade();
 
         let value = self.value.update_result(|value| {
             let raw_value = match value.take() {
@@ -146,7 +158,7 @@ where
     /// 
     /// Use it if you need to access value frequently
     pub fn value_allocate(&self) -> SwapResult<T> {
-        self.handle.keep_alive(self.uuid);
+        self.upgrade();
 
         self.value.update_result(|value| {
             if value.is_none() {
@@ -238,11 +250,7 @@ where
 impl<T> SizeOf for SwapEntity<T> where T: Clone + SizeOf {
     #[inline]
     fn size_of(&self) -> usize {
-        let value_size = self.value.get()
-            .map(|value| value.size_of())
-            .unwrap_or(std::mem::size_of_val(&self.value));
-
-        value_size + std::mem::size_of_val(&self.handle) + self.path.capacity()
+        self.value.size_of() + std::mem::size_of_val(&self.handle) + self.path.capacity()
     }
 }
 

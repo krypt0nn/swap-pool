@@ -5,6 +5,7 @@ pub mod error;
 pub mod entity;
 pub mod handle;
 pub mod pool;
+pub mod manager;
 
 pub mod prelude {
     pub use super::size::*;
@@ -14,4 +15,5 @@ pub mod prelude {
     pub use super::entity::*;
     pub use super::handle::*;
     pub use super::pool::*;
+    pub use super::manager::*;
 }

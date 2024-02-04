@@ -1,5 +1,7 @@
 use std::cell::Cell;
 
+use super::size::SizeOf;
+
 /// Inplace cells are standard rust `Cell`-s that
 /// are updated "in place", meaning they won't loose
 /// their value until the update is finished.
@@ -109,5 +111,17 @@ impl<T> InplaceCell<T> where T: Default + Clone {
         self.value.set(value.clone());
 
         value
+    }
+}
+
+impl<T> SizeOf for InplaceCell<T> where T: Default + Clone + SizeOf {
+    #[inline]
+    fn size_of(&self) -> usize {
+        let value = self.value.take();
+        let size = value.size_of();
+
+        self.value.set(value);
+
+        std::mem::size_of_val(self) + size
     }
 }

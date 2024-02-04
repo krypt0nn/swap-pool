@@ -7,6 +7,7 @@ use super::uuid;
 use super::error::{SwapResult, SwapError};
 use super::entity::SwapEntity;
 use super::handle::SwapHandle;
+use super::manager::{SwapManager, SwapLastUseManager};
 
 pub struct SwapPool<T> {
     handle: Arc<SwapHandle<T>>,
@@ -15,7 +16,7 @@ pub struct SwapPool<T> {
 
 impl<T> SwapPool<T> {
     #[inline]
-    /// Create new swap pool
+    /// Create new swap pool with a `SwapLastUseManager` entities manager
     /// 
     /// ```rust,no_run
     /// use swap_pool::prelude::*;
@@ -27,8 +28,24 @@ impl<T> SwapPool<T> {
     /// pool.spawn(vec![0; 128]).unwrap();
     /// ```
     pub fn new(allocated: usize, path: impl Into<PathBuf>) -> Self {
+        Self::with_manager(allocated, path, SwapLastUseManager::default())
+    }
+
+    #[inline]
+    /// Create new swap pool with a custom entities manager
+    /// 
+    /// ```rust,no_run
+    /// use swap_pool::prelude::*;
+    /// 
+    /// // Create the pool with a custom entities manager
+    /// let mut pool = SwapPool::with_manager(128, "/tmp", SwapUpgradeCountManager::default());
+    /// 
+    /// // Spawn new entity
+    /// pool.spawn(vec![0; 128]).unwrap();
+    /// ```
+    pub fn with_manager(allocated: usize, path: impl Into<PathBuf>, manager: impl SwapManager + 'static) -> Self {
         Self {
-            handle: Arc::new(SwapHandle::new(allocated)),
+            handle: Arc::new(SwapHandle::new(allocated, manager)),
             path: path.into()
         }
     }

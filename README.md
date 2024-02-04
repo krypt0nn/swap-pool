@@ -67,7 +67,8 @@ Notes:
 3. You can replace the entity's value using `entity.replace(value)`. It will not try to free the memory to store the new value.
 4. You can free any amount of memory you need by calling `handle.free(memory)`. It will also say if it succeeded to free given amount of memory.
 5. You can also call `handle.flush()` to flush all the entities.
-6. Call `handle.collect_garbage()` to remove weak references to the dropped entities. This method is called automatically on each `handle.free()` call, which is also called automatically by the `entity.value()` if there's not enough memory available. Both methods are resource heavy so don't call them often.
+6. Call `handle.collect_garbage()` to remove weak references to the dropped entities. Otherwise they will stack up in the pool's entities list.
+7. You can create swap pools with different entities ranking implementations using `SwapPool::with_manager()`. By default `SwapLastUseManager` is used, which records timestamps of when records' values were requested. You can use `SwapUpgradeCountManager` to count their amount instead, or make your own implementation of the `SwapManager` trait.
 
 ## Features
 
