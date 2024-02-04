@@ -68,7 +68,104 @@ Notes:
 4. You can free any amount of memory you need by calling `handle.free(memory)`. It will also say if it succeeded to free given amount of memory.
 5. You can also call `handle.flush()` to flush all the entities.
 6. Call `handle.collect_garbage()` to remove weak references to the dropped entities. Otherwise they will stack up in the pool's entities list.
-7. You can create swap pools with different entities ranking implementations using `SwapPool::with_manager()`. By default `SwapLastUseManager` is used, which records timestamps of when records' values were requested. You can use `SwapUpgradeCountManager` to count their amount instead, or make your own implementation of the `SwapManager` trait.
+
+## Entities managers
+
+Entities managers decide what entities should be flushed before the others. By default `SwapPool` will use `SwapLastUsedManager` which saves timestamps of last entities uses (calls of `value()` or `upgrade()` methods). There's also a `SwapUpgradesCountManager` which counts upgrades and uses them as entities' ranks.
+
+You can implement your own manager:
+
+```rust
+use std::collections::HashSet;
+use std::cell::Cell;
+
+use swap_pool::prelude::*;
+
+pub struct ExampleManager {
+    entities: Cell<HashSet<u64>>
+}
+
+impl Default for ExampleManager {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            entities: Cell::new(HashSet::new())
+        }
+    }
+}
+
+impl SwapManager for ExampleManager {
+    #[inline]
+    fn upgrade(&self, uuid: u64) -> u64 {
+        let mut entities = self.entities.take();
+
+        // Store the entity's unique id
+        entities.insert(uuid);
+
+        self.entities.set(entities);
+
+        self.rank(uuid)
+    }
+
+    #[inline]
+    fn rank(&self, uuid: u64) -> u64 {
+        let entities = self.entities.take();
+
+        // Get stored entity's position
+        // and return it as a rank
+        // Later an entity was used - later
+        // it will be unallocated
+        let rank = entities.iter()
+            .position(|entity| entity == &uuid)
+            .unwrap_or_default();
+
+        self.entities.set(entities);
+
+        u64::try_from(rank).unwrap()
+    }
+}
+```
+
+## Entities transformers
+
+Transformers are used to mutate entities' values when reading or writing swap files. By default `SwapIdentityTransformer` is used which does nothing to the original data.
+
+Let's make a transformer which reverses input data:
+
+```rust
+use swap_pool::prelude::*;
+
+struct ReverseDataTransformer;
+
+impl SwapTransformer for ReverseDataTransformer {
+    // Called to change the value which will be saved to the swap file
+    fn forward(&self, data: Vec<u8>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        Ok(data.into_iter().rev().collect())
+    }
+
+    // Called to change the value read from the swap file
+    fn backward(&self, data: Vec<u8>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        Ok(data.into_iter().rev().collect())
+    }
+}
+```
+
+## Pool builder
+
+```rust
+use swap_pool::prelude::*;
+
+let mut pool = SwapPoolBuilder::default()
+    .with_manager(ExampleManager::default())
+    .with_transformer(ReverseDataTransformer)
+    .with_thread_safe(false)
+    .build();
+
+let entity = pool.spawn(b"Hello, World!".to_vec()).unwrap();
+
+// Hello, World!
+println!("{}", String::from_utf8_lossy(&entity.value().unwrap()));
+```
 
 ## Features
 
@@ -89,34 +186,6 @@ Notes:
 1. Enabling `random-uuid` will disable `timestamp-uuid` and use of values to generate UUID (result will be based on the randomly generated number only). When both disabled - UUID generation will be based on the entity's value only.
 2. If both `crc32-uuid` and `xxhash-uuid` enabled - the latest one will be prioritized. If none - default `HashMap`'s hasher is used.
 3. You can't enable both `size-of-crate` and `dyn-size-of-crate` features simultaneously because it would cause compatibility issues. Consider enabling only one of them.
-
-## Entities keep alive ranking
-
-> Sorry github users, but crates.io has monospaced font.
-
-Let's say we have 3 entities in the swap pool:
-
-```
- Entities
-┌────────────────────────────────────────┐
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐ │
-│ │ Entity 1 │ │ Entity 2 │ │ Entity 3 │ │
-│ └──────────┘ └──────────┘ └──────────┘ │
-└────────────────────────────────────────┘
-```
-
-And we've requested "Entity 2" and "Entity 3"'s values. Then our keep alive ranks array will look like this:
-
-```
- Keep alive ranks
-┌───────────────────────────┐
-│ ┌──────────┐ ┌──────────┐ │
-│ │ Entity 2 │ │ Entity 3 │ │
-│ └──────────┘ └──────────┘ │
-└───────────────────────────┘
-```
-
-Now, if we need to free some memory, swap pool will go through the entities list according to their rank and flush them. Firstly it will try to flush all the entities without a rank (which weren't requested for some time) - "Entity 1" in our case. Then swap pool will go through the entities which have the rank in ascending order - so try to flush "Entity 2" first, and "Entity 3" later. If there's no more entities remaining - return "false" status.
 
 Author: [Nikita Podvirnyi](https://github.com/krypt0nn)\
 Licensed under [MIT](LICENSE)
